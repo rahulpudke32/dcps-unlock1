@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>DCPS_GEN_PRO - Instant Mobile Passkey Unlocker</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        body { background-color: #050510; color: #ffffff; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 15px; }
+        .card { background: #111122; border: 2px solid #00e5ff; border-radius: 20px; width: 100%; max-width: 440px; padding: 25px 20px; box-shadow: 0 10px 30px rgba(0, 229, 255, 0.2); text-align: center; }
+        .logo { font-size: 24px; font-weight: 900; color: #ff0055; font-family: Impact, sans-serif; letter-spacing: 1px; margin-bottom: 4px; }
+        .sub { font-size: 11px; font-weight: 700; color: #00e5ff; font-family: monospace; letter-spacing: 0.5px; margin-bottom: 20px; }
+        .box { background: #080815; border: 1px solid #1a1a3a; border-radius: 14px; padding: 16px; margin-bottom: 18px; }
+        .label { font-size: 11px; font-weight: 800; color: #aaaaaa; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+        .token-val { font-size: 26px; font-weight: 800; color: #00e5ff; font-family: "Consolas", monospace; letter-spacing: 1px; word-break: break-all; }
+        .passkey-val { font-size: 42px; font-weight: 900; color: #00ff88; font-family: "Consolas", monospace; letter-spacing: 3px; margin: 8px 0; text-shadow: 0 0 12px rgba(0, 255, 136, 0.4); }
+        .btn { width: 100%; padding: 16px; font-size: 15px; font-weight: 800; color: #ffffff; background: linear-gradient(135deg, #00c853, #00e676); border: none; border-radius: 30px; cursor: pointer; box-shadow: 0 4px 15px rgba(0, 200, 83, 0.4); transition: all 0.2s ease; outline: none; margin-top: 5px; }
+        .btn:active { transform: scale(0.98); }
+        .btn-copy { background: linear-gradient(135deg, #0052cc, #0066ff); box-shadow: 0 4px 15px rgba(0, 102, 255, 0.4); }
+        .copied-msg { font-size: 12px; font-weight: 800; color: #00ff88; margin-top: 10px; display: none; }
+        .setup-box { background: #1a1a2e; border: 1px solid #00e5ff; border-radius: 12px; padding: 18px; margin-top: 15px; text-align: left; }
+        .setup-title { font-size: 13px; font-weight: 800; color: #ffd700; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+        .input-key { width: 100%; padding: 12px; font-size: 14px; font-family: monospace; background: #080815; border: 1px solid #00e5ff; color: #ffffff; border-radius: 8px; margin: 8px 0 12px 0; outline: none; }
+        .reset-link { font-size: 11px; color: #8888aa; text-decoration: underline; cursor: pointer; margin-top: 18px; display: inline-block; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="logo">? DCPS_GEN_PRO ?</div>
+        <div class="sub">INSTANT MOBILE PASSKEY UNLOCKER</div>
+
+        <div id="authContainer">
+            <div class="box">
+                <div class="label">DAILY SECURITY TOKEN</div>
+                <div class="token-val" id="tokenDisplay">---</div>
+            </div>
+
+            <div class="box" style="border-color: #00ff88;">
+                <div class="label" style="color: #00ff88;">ACTIVATION PASSKEY</div>
+                <div class="passkey-val" id="passkeyDisplay">------</div>
+            </div>
+
+            <button class="btn btn-copy" id="copyBtn" onclick="copyPasskey()">?? TAP TO COPY PASSKEY</button>
+            <div class="copied-msg" id="copiedMsg">? COPIED TO CLIPBOARD! PASTE IN WHATSAPP</div>
+        </div>
+
+        <div id="setupContainer" class="setup-box" style="display: none;">
+            <div class="setup-title">?? ADMIN DEVICE AUTHORIZATION</div>
+            <p style="font-size: 11px; color: #cccccc; line-height: 1.4;">Please enter your Master Secret Key once to authorize this phone device:</p>
+            <input type="password" id="masterKeyInput" class="input-key" placeholder="Enter Master Secret Key..." value="MySuperSecretGPFKey2026!">
+            <button class="btn" onclick="saveMasterKey()">?? AUTHORIZE THIS DEVICE</button>
+        </div>
+
+        <div class="reset-link" onclick="promptMasterKeyReset()">?? Change Stored Master Key</div>
+    </div>
+
+    <script>
+        const DEFAULT_MASTER_KEY = "MySuperSecretGPFKey2026!";
+
+        async function sha256Passkey(splCode, masterKey) {
+            const text = splCode + masterKey;
+            const encoder = new TextEncoder();
+            const data = encoder.encode(text);
+            const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            const hashHex = [suspicious link removed](b => b.toString(16).padStart(2, "0")).join("");
+            const first8 = hashHex.substring(0, 8);
+            const numVal = parseInt(first8, 16) % 1000000;
+            return String(numVal).padStart(6, "0");
+        }
+
+        function getQueryToken() {
+            const params = new URLSearchParams([suspicious link removed]);
+            return params.get("token") || params.get("t") || "";
+        }
+
+        async function initApp() {
+            const token = getQueryToken();
+            let storedKey = localStorage.getItem("DCPS_MASTER_KEY");
+
+            if (!storedKey) {
+                storedKey = DEFAULT_MASTER_KEY;
+                localStorage.setItem("DCPS_MASTER_KEY", storedKey);
+            }
+
+            if (token) {
+                document.getElementById("tokenDisplay").innerText = token;
+                const passkey = await sha256Passkey(token, storedKey);
+                document.getElementById("passkeyDisplay").innerText = passkey;
+            } else {
+                document.getElementById("tokenDisplay").innerText = "NO TOKEN DETECTED";
+                document.getElementById("passkeyDisplay").innerText = "------";
+            }
+        }
+
+        function saveMasterKey() {
+            const keyInput = document.getElementById("masterKeyInput").value.trim();
+            if (keyInput) {
+                localStorage.setItem("DCPS_MASTER_KEY", keyInput);
+                document.getElementById("setupContainer").style.display = "none";
+                document.getElementById("authContainer").style.display = "block";
+                initApp();
+            }
+        }
+
+        function promptMasterKeyReset() {
+            document.getElementById("authContainer").style.display = "none";
+            document.getElementById("setupContainer").style.display = "block";
+        }
+
+        function copyPasskey() {
+            const passkey = document.getElementById("passkeyDisplay").innerText;
+            if (passkey && passkey !== "------") {
+                navigator.clipboard.writeText(passkey).then(() => {
+                    const msg = document.getElementById("copiedMsg");
+                    [suspicious link removed].display = "block";
+                    setTimeout(() => { [suspicious link removed].display = "none"; }, 2500);
+                }).catch(() => {
+                    const tempInput = document.createElement("input");
+                    tempInput.value = passkey;
+                    document.body.appendChild(tempInput);
+                    [suspicious link removed]();
+                    document.execCommand("copy");
+                    document.body.removeChild(tempInput);
+                    const msg = document.getElementById("copiedMsg");
+                    [suspicious link removed].display = "block";
+                    setTimeout(() => { [suspicious link removed].display = "none"; }, 2500);
+                });
+            }
+        }
+
+        window.addEventListener("DOMContentLoaded", initApp);
+    </script>
+</body>
+</html>
